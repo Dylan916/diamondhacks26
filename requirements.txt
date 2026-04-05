@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-browser-use
-playwright
-langchain-google-genai
-google-genai
-python-dotenv
-aiohttp
-httpx
