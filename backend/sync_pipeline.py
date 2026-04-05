@@ -14,6 +14,48 @@ from .canvas_agent import run_canvas_agent
 from .external_agent import run_external_agent
 from .database import is_duplicate, save_assignment
 from browser_use_sdk.v3 import BrowserUse
+from google import genai
+from .prompts import LLM_PROCESSING_PROMPT
+
+def refine_with_gemini(raw_text: str, url: str) -> list[dict]:
+    """Uses Gemini 1.5 Flash to parse raw syllabus text into structured assignments."""
+    if not raw_text:
+        raise ValueError("Raw text from browser agent was completely empty.")
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is missing from environment variables.")
+
+    # Using the modern google-genai client
+    client = genai.Client(api_key=api_key)
+
+    now = datetime.now()
+    prompt = (
+        LLM_PROCESSING_PROMPT
+        .replace("{TODAY}", now.date().isoformat())
+        .replace("{YEAR}", str(now.year))
+        .replace("{URL}", url)
+        .replace("{COURSE_NAME}", "DSC 106") # Default for now
+    )
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"{prompt}\n\nRAW TEXT FROM WEBSITE:\n{raw_text}"
+        )
+        
+        if not response.text:
+             raise ValueError("Gemini API replied with an empty text body.")
+
+        # Handle the new response format (which might include markdown)
+        text = response.text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(text)
+        return data.get("assignments", [])
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse JSON from Gemini. Raw Output:\n{response.text}")
+    except Exception as e:
+         # Propagate the raw API exception upwards
+         raise e
 
 
 def normalize_due_date(raw: str | None) -> str | None:
@@ -41,46 +83,33 @@ async def run_sync(external_urls: list[str]) -> AsyncGenerator[str, None]:
     human-readable log strings at each step via Server-Sent Events.
     """
 
-    yield "Starting multi-track sync process..."
+    yield "🚀 Starting External Hybrid Sync process..."
 
     # ── Step 1: Launch Tasks on Browser Use Cloud ───────────────────────
-    canvas_session_id = None
+    canvas_session_id = None # Initialize to prevent cleanup error
     external_session_id = None
-    
     external_task_id = None
-    external_text = ""
     added = 0
     skipped = 0
 
     try:
-        if external_urls:
-            yield f"Initializing External Cloud Agent for {len(external_urls)} sites..."
-            try:
-                # Returns (task_id, session_id, live_url)
-                external_task_id, external_session_id, external_url = await asyncio.to_thread(run_external_agent, external_urls)
-                yield f"👉 External Live Viewer: {external_url}"
-            except Exception as e:
-                yield f"❌ Failed to start External agent: {e}"
-                return
+        # Focusing 100% on External track per user request
+        if not external_urls:
+             yield "❌ No external URLs provided to sync."
+             return
 
-        yield "Cloud agent successfully started! Polling status..."
-
-        # Cleanup: Close any orphaned sessions (v3 style)
+        yield f"Initializing External Cloud Hunter for {len(external_urls)} sites..."
         try:
-            client = BrowserUse()
-            sessions_res = client.sessions.list()
-            if hasattr(sessions_res, 'sessions'):
-                for s in sessions_res.sessions:
-                    # Don't kill our own brand-new sessions!
-                    if s.status.value == 'running':
-                        sid_str = str(s.id)
-                        if sid_str != external_session_id and sid_str != canvas_session_id:
-                            print(f"Cleaning up orphaned orphan: {sid_str}")
-                            client.sessions.stop(s.id)
-        except:
-            pass 
+            # Returns (task_id, session_id, live_url)
+            external_task_id, external_session_id, external_url = await asyncio.to_thread(run_external_agent, external_urls)
+            yield f"👉 External Live Viewer: {external_url}"
+        except Exception as e:
+            yield f"❌ Failed to start External agent: {e}"
+            return
 
-        # ── Step 2: Polling V3 ──────────────────────────────────────────────
+        yield "Cloud agent successfully started! Hunting for syllabus content..."
+
+        # ── Step 2: Polling V3 (Raw Extraction) ──────────────────────────────
         results_blob = None
         if external_task_id:
             def poll_v3_session(sid):
@@ -100,65 +129,52 @@ async def run_sync(external_urls: list[str]) -> AsyncGenerator[str, None]:
 
             external_poll_task = asyncio.create_task(asyncio.to_thread(poll_v3_session, external_session_id))
             
-            yield "Agent is processing your request (V3 Pipeline)..."
             while not external_poll_task.done():
                 await asyncio.sleep(5)
-                yield "Cloud agent is still working (polling v3 status)..."
+                yield "Cloud agent is still scanning (polling v3 status)..."
             
-            # The output is now a dict (AssignmentList schema)
+            # The output should be a dict: {"extracted_text": "..."}
             results_blob = await external_poll_task
-            yield "Cloud extraction complete."
+            yield "✅ Cloud extraction complete. Now refining data with AI..."
 
         if not results_blob:
             yield "❌ Sync finished but the Cloud returned no results."
             return
 
-        # ── Step 3: Direct Data Processing ──────────────────────────────────
-        # results_blob should match AssignmentList: {"assignments": [...]}
-        assignments = []
+        # ── Step 3: Hybrid Refinement (The Brain) ────────────────────────────
+        raw_text = ""
+        if isinstance(results_blob, dict):
+             raw_text = results_blob.get("extracted_text", "")
+        elif hasattr(results_blob, "extracted_text"):
+             raw_text = results_blob.extracted_text
+
+        yield "🧠 Using AI to structure assignments and compute recurring dates..."
         
         try:
-            if hasattr(results_blob, "dict"):
-                 # Handle Pydantic model
-                 data = results_blob.dict()
-                 assignments = data.get("assignments", [])
-            elif isinstance(results_blob, dict):
-                 # Handle raw dict
-                 assignments = results_blob.get("assignments", [])
-            elif isinstance(results_blob, str):
-                 # Handle stringified JSON
-                 try:
-                     data = json.loads(results_blob)
-                     assignments = data.get("assignments", [])
-                 except:
-                     yield f"⚠️ Cloud returned raw text instead of JSON: {results_blob[:100]}..."
-                     return
-            else:
-                 yield f"⚠️ Unexpected data type from Cloud: {type(results_blob)}"
-                 return
-        except Exception as e:
-            yield f"⚠️ Data processing error: {e}"
+            # We pass the first URL as context
+            assignments = refine_with_gemini(raw_text, external_urls[0])
+            
+            if not assignments:
+                yield "⚠️ AI completed successfully but returned an empty assignments list. The prompt might be too rigid."
+                return
+        except Exception as ai_err:
+            yield f"⚠️ AI Refinement Failed: {ai_err}"
             return
 
-        if not assignments:
-            yield "⚠️ No assignments were found on the target pages."
-            return
+        yield f"✅ AI successfully refined {len(assignments)} items."
 
         # ── Step 4: Storage ────────────────────────────────────────────────
         for assignment in assignments:
             title = assignment.get("title", "Untitled")
-            course = assignment.get("course", "Unknown")
-            # Normalize due date to ISO 8601 for dashboard parsing
-            raw_date = assignment.get("due_date")
-            due_date = normalize_due_date(raw_date)
-            assignment["due_date"] = due_date
+            course = assignment.get("course", "DSC 106")
+            due_date = assignment.get("due_date") # Already standardized by Gemini
 
             try:
                 if is_duplicate(title, course, due_date):
                     skipped += 1
                 else:
                     save_assignment(assignment)
-                    yield f"Saved: {title} ({course}) — due {due_date or 'TBD'}"
+                    yield f"Saved: {title} — due {due_date or 'TBD'}"
                     added += 1
             except Exception as e:
                 yield f"⚠️ Failed to save {title}: {e}"

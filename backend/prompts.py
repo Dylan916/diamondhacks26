@@ -8,6 +8,8 @@ CANVAS_URL = os.environ.get("CANVAS_URL", "https://canvas.instructure.com")
 
 # The canvas agent task template.
 # The URL is injected dynamically by the agent at runtime.
+# The canvas agent task template.
+# The URL is injected dynamically by the agent at runtime.
 CANVAS_AGENT_TASK = """
 Navigate to {CANVAS_URL}.
 If you see a multi-factor authentication (MFA) page, STOP your actions and DO NOT click anything. Wait silently for the user to manually approve the MFA on their phone.
@@ -39,25 +41,22 @@ Classify each item's 'type' field:
 When finished with ALL courses, return the assignments in the requested structured format.
 """
 
-EXTERNAL_AGENT_TASK = """
+# Simplified Extraction Task (The Muscle)
+# This task is intentionally dumb — it just navigates and grabs text.
+EXTERNAL_RAW_EXTRACT_TASK = """
 Navigate to {URL}.
 
-Today's date is {TODAY}. Your goal is to extract ALL assignments from this course page.
+Today's date is {TODAY}. Your ONLY mission:
+1. **Find and CLICK** the link for 'Syllabus', 'Schedule', 'Course Calendar', or 'Assignments'.
+2. **VERIFY** the page has changed.
+3. **SCROLL** down to ensure all tables/rows are loaded.
+4. **GRAB** every single date, assignment name, and schedule row on the page.
+5. **DO NOT** worry about formatting. Just return the raw data as a large block of text.
 
-## Step 1: Find the Syllabus
-- Look for links or tabs labeled: Syllabus, Schedule, Course Schedule, Calendar, Assignments, or similar.
-- CLICK into the Syllabus/Schedule page — do NOT just read the homepage. The homepage rarely has full assignment info.
+Return EVERYTHING you see related to the course schedule in your `extracted_text` field.
+"""
 
-## Step 2: Extract EVERYTHING
-- Look for ANY date mention — weeks, days of the week, specific dates, relative dates.
-- If the syllabus says something like "Labs due every Wednesday at 11:59pm", compute the actual dates for all remaining Wednesdays this quarter/semester.
-- If it says "Week 3: Project 1 due", estimate the actual date based on the quarter start.
-- Look for ALL of these: assignments, labs, projects, checkpoints, peer reviews, exams, quizzes, readings.
-
-## Step 3: Classify each item
-Classify each item's type field as one of: "lab", "project", "exam", "quiz", "assignment"
-- If title contains Lab → "lab"
-- If title contains Project, Checkpoint, or Prototype → "project"  
+EXTERNAL_AGENT_TASK = """
 - If title contains Exam, Midterm, or Final → "exam"
 - If title contains Quiz → "quiz"
 - Otherwise → "assignment"
@@ -72,26 +71,26 @@ Return ONLY the structured data. No explanations.
 
 
 LLM_PROCESSING_PROMPT = """
-You are a highly analytical AI system instructed to process raw scraped text into a JSON array of student assignments.
-You may receive messy text, memory logs, or action descriptions. Your job is to find the assignment titles and dates within that mess.
+Extract assignments into JSON.
 
-1. Clean and standardize all dates to ISO 8601 format (e.g. "2024-10-14T23:59:00").
-2. Classify each item by type (assignment, exam, project, etc.).
-3. Deduplicate items.
+Today is {TODAY}, Year is {YEAR}, Course is {COURSE_NAME}.
 
-YOU MUST RETURN ONLY A RAW JSON ARRAY. NO MARKDOWN. NO EXPLANATIONS.
-If you cannot find any assignments in the text, return an empty array: []
+RULES:
+1. Identify dates like "Tue Apr 7" or "Fri Apr 10". 
+2. Convert to ISO 8601: "{YEAR}-04-14T23:59:00".
+3. Classify: "lab", "project", "exam", "quiz", "assignment".
+4. If it says "Labs due every Friday", generate dates for every Friday for 10 weeks from {TODAY}.
 
-Return EXACTLY THIS FORMAT:
-[
-  {{
-    "title": "string",
-    "course": "string",
-    "due_date": "string (ISO 8601)",
-    "type": "string",
-    "source": "string",
-    "source_url": "string or null",
-    "needs_review": boolean
-  }}
-]
+OUTPUT ONLY THIS JSON OBJECT:
+{{
+  "assignments": [
+    {{
+      "title": "string",
+      "course": "{COURSE_NAME}",
+      "due_date": "ISO8601",
+      "type": "string",
+      "source_url": "{URL}"
+    }}
+  ]
+}}
 """
