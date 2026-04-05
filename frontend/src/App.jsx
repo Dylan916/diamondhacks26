@@ -99,7 +99,7 @@ export default function App() {
       <header className="header">
         <span className="header-logo">🎓</span>
         <h1>Course2Calendar</h1>
-        <span className="header-sub">Powered by Browser Use · Gemini Flash</span>
+        <span className="header-sub">Powered by Browser Use · Gemini 3.1 Flash</span>
       </header>
 
       <main className="main">
