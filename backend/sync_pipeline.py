@@ -5,40 +5,59 @@ sync_pipeline.py — Orchestrates the full sync flow and yields log strings for 
 import asyncio
 from typing import AsyncGenerator
 
-from .browser_agent import run_agent
+from .canvas_agent import run_canvas_agent
+from .external_agent import run_external_agent
 from .llm_processor import process_raw_data
 from .database import is_duplicate, save_assignment
 
 
-async def run_sync(canvas_url: str) -> AsyncGenerator[str, None]:
+async def run_sync(external_urls: list[str]) -> AsyncGenerator[str, None]:
     """
     Async generator that runs the full sync pipeline and yields
-    human-readable log strings at each step.
-
-    The FastAPI route streams these as Server-Sent Events.
+    human-readable log strings at each step via Server-Sent Events.
     """
 
-    # ── Step 1: Launch the Browser Use agent ─────────────────────────────────
-    yield "Opening Canvas using your existing Chrome session..."
+    yield "Starting multi-track sync process..."
+
+    # ── Step 1 & 2: Launch Agents in Parallel ────────────────────────────────
+    yield "Starting Canvas scrape..."
+    if external_urls:
+        yield f"Scraping {len(external_urls)} external sites..."
+    else:
+        yield "No external sites provided. Skipping Track B."
+
+    canvas_task = asyncio.create_task(run_canvas_agent())
+    
+    external_task = None
+    if external_urls:
+         external_task = asyncio.create_task(run_external_agent(external_urls))
 
     try:
-        raw_text = await run_agent(canvas_url)
+        canvas_text = await canvas_task
+        yield "Canvas scrape complete"
     except Exception as e:
-        yield f"❌ Browser agent error: {e}"
+        canvas_text = ""
+        yield f"❌ Canvas agent error: {e}"
+
+    if external_task:
+        try:
+            external_text = await external_task
+            yield "External sites scrape complete"
+        except Exception as e:
+            external_text = ""
+            yield f"❌ External agent error: {e}"
+    else:
+        external_text = ""
+
+    if not canvas_text.strip() and not external_text.strip():
+        yield "❌ Both agents returned no data. Make sure Chrome is closed and your credentials/API keys are correct."
         return
 
-    if not raw_text or not raw_text.strip():
-        yield "❌ Browser agent returned no data. Make sure Chrome is closed and you are logged into Canvas, then try again."
-        return
-
-    yield "✅ Browser agent finished scraping Canvas"
-    yield f"📄 Raw data collected ({len(raw_text):,} characters)"
-
-    # ── Step 2: Gemini post-processing ───────────────────────────────────────
-    yield "🤖 Sending data to Gemini for classification and date parsing..."
+    # ── Step 3: Gemini post-processing ───────────────────────────────────────
+    yield "Processing with Gemini..."
 
     try:
-        assignments = process_raw_data(raw_text)
+        assignments = process_raw_data(canvas_text, external_text)
     except Exception as e:
         yield f"❌ Gemini processing error: {e}"
         return
@@ -47,11 +66,10 @@ async def run_sync(canvas_url: str) -> AsyncGenerator[str, None]:
         yield "⚠️  Gemini returned no structured assignments. The page content may be empty or in an unexpected format."
         return
 
-    yield f"✅ Gemini processed {len(assignments)} assignment(s)"
+    yield f"Found {len(assignments)} assignments total"
 
-    # ── Step 3: Deduplication + save to SQLite ────────────────────────────────
-    yield "💾 Saving assignments..."
-
+    # ── Step 4: Deduplication + save to SQLite ────────────────────────────────
+    
     added = 0
     skipped = 0
 
@@ -62,19 +80,15 @@ async def run_sync(canvas_url: str) -> AsyncGenerator[str, None]:
 
         try:
             if is_duplicate(title, course, due_date):
-                yield f"⏭️  Skipped duplicate: {title} ({course})"
                 skipped += 1
                 continue
 
             save_assignment(assignment)
-            yield f"✅ Saved: {title} ({course})"
+            yield f"Saved {title} ({course})"
             added += 1
 
         except Exception as e:
             yield f"⚠️  Failed to save '{title}': {e}"
 
-    # ── Step 4: Done ─────────────────────────────────────────────────────────
-    yield (
-        f"🎉 Sync complete! {added} assignment(s) saved, "
-        f"{skipped} duplicate(s) skipped."
-    )
+    # ── Step 5: Done ─────────────────────────────────────────────────────────
+    yield f"Sync complete. {added} assignments saved."

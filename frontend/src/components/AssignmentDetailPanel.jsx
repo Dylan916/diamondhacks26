@@ -13,10 +13,10 @@ const TYPE_STYLE = {
 
 // ── Source badge colors ───────────────────────────────────────────────────────
 const SOURCE_STYLE = {
-  'Assignments':   'bg-blue-500/20 text-blue-400 border border-blue-500/30',
-  'Syllabus':      'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
-  'Announcement':  'bg-orange-500/20 text-orange-400 border border-orange-500/30',
-  'External Site': 'bg-pink-500/20 text-pink-400 border border-pink-500/30',
+  'Canvas Assignments':  'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  'Canvas Syllabus':     'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
+  'Canvas Announcement': 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+  'External Site':       'bg-pink-500/20 text-pink-400 border border-pink-500/30',
 }
 
 function formatDue(iso) {
@@ -52,7 +52,7 @@ export default function AssignmentDetailPanel({ assignment, onClose }) {
 
   const isOpen = !!assignment
   const typeStyle   = TYPE_STYLE[assignment?.type?.toLowerCase()]   ?? TYPE_STYLE.other
-  const sourceStyle = SOURCE_STYLE[assignment?.source] ?? SOURCE_STYLE['Assignments']
+  const sourceStyle = SOURCE_STYLE[assignment?.source] ?? SOURCE_STYLE['Canvas Assignments']
 
   return (
     <>
@@ -109,23 +109,24 @@ export default function AssignmentDetailPanel({ assignment, onClose }) {
                   {assignment.type || 'other'}
                 </span>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${sourceStyle}`}>
-                  {assignment.source || 'Assignments'}
+                  {assignment.source || 'Canvas Assignments'}
                 </span>
               </div>
 
               {/* Needs review warning */}
               {assignment.needs_review && (
-                <div className="bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 rounded-lg p-3 text-sm">
-                  ⚠️ This assignment may have content on an external site
+                <div className="bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 rounded-lg p-3 text-sm flex gap-2 items-start">
+                  <span className="text-lg leading-none mt-0.5">⚠️</span>
+                  <span>Date may need verification — check the original source</span>
                 </div>
               )}
 
               {/* External URL */}
-              {assignment.external_url && (
+              {assignment.source_url && (
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Source</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Source Link</p>
                   <a
-                    href={assignment.external_url}
+                    href={assignment.source_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-2 transition-colors break-all"

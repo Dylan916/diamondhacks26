@@ -16,6 +16,10 @@ from pydantic import BaseModel
 from .database import init_db, get_all_assignments
 from .sync_pipeline import run_sync
 
+class SyncRequest(BaseModel):
+    external_urls: list[str] = []
+
+
 app = FastAPI(title="Student Life Autopilot")
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
@@ -109,20 +113,12 @@ def export_ics():
 
 
 @app.post("/api/sync")
-async def sync():
+async def sync(req: SyncRequest):
     """
     Run the full sync pipeline and stream progress as Server-Sent Events.
-    CANVAS_URL is read from the .env file, not from the request body.
     """
-    canvas_url = os.getenv("CANVAS_URL", "").strip()
-    if not canvas_url:
-        async def err():
-            yield "data: \u274c CANVAS_URL is not set in your .env file.\n\n"
-            yield "data: __DONE__\n\n"
-        return StreamingResponse(err(), media_type="text/event-stream")
-
     async def event_generator() -> AsyncGenerator[str, None]:
-        async for log_line in run_sync(canvas_url=canvas_url):
+        async for log_line in run_sync(external_urls=req.external_urls):
             # Escape any newlines inside the message so SSE framing stays intact
             safe_line = log_line.replace("\n", " ")
             yield f"data: {safe_line}\n\n"

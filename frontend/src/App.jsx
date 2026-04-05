@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import SyncButton from './components/SyncButton'
 import ActivityLog from './components/ActivityLog'
 import Dashboard from './components/Dashboard'
+import UrlInputList from './components/UrlInputList'
 import './index.css'
 
 export default function App() {
@@ -9,6 +10,7 @@ export default function App() {
   const [logs, setLogs] = useState([])
   const [assignments, setAssignments] = useState([])
   const [hasSynced, setHasSynced] = useState(false)
+  const [externalUrls, setExternalUrls] = useState([''])
   const abortRef = useRef(null)
 
   const addLog = useCallback((msg) => {
@@ -37,7 +39,7 @@ export default function App() {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ external_urls: externalUrls.filter(u => u.trim() !== '') }),
         signal: controller.signal,
       })
 
@@ -101,11 +103,19 @@ export default function App() {
             <span>Your Calendar</span>
           </h2>
           <p>
-            Click Sync and the AI agent will open your existing Chrome session,
-            scrape all your assignments, exams, and deadlines — then push them
-            into your calendar, ready to view.
+            Paste your external course websites below. We'll automatically fetch your 
+            Canvas data using your Chrome profile, scrape everything, and build your calendar.
           </p>
         </section>
+
+        {!hasSynced && !syncing && (
+          <div className="credentials-card text-left mb-8 px-6 pt-6 pb-2">
+            <UrlInputList 
+              externalUrls={externalUrls} 
+              setExternalUrls={setExternalUrls} 
+            />
+          </div>
+        )}
 
         {/* ── Sync ── */}
         <div className="sync-wrap">

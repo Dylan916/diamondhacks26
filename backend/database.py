@@ -27,7 +27,7 @@ def init_db() -> None:
                 due_date      TEXT,
                 type          TEXT,
                 source        TEXT,
-                external_url  TEXT,
+                source_url    TEXT,
                 needs_review  INTEGER DEFAULT 0,
                 created_at    TEXT    NOT NULL
             )
@@ -52,7 +52,7 @@ def save_assignment(assignment: dict) -> None:
         conn.execute(
             """
             INSERT INTO assignments
-                (title, course, due_date, type, source, external_url,
+                (title, course, due_date, type, source, source_url,
                  needs_review, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -62,7 +62,7 @@ def save_assignment(assignment: dict) -> None:
                 assignment.get("due_date"),
                 assignment.get("type"),
                 assignment.get("source"),
-                assignment.get("external_url"),
+                assignment.get("source_url"),
                 1 if assignment.get("needs_review") else 0,
                 datetime.utcnow().isoformat(),
             ),
