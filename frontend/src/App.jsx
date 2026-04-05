@@ -14,7 +14,14 @@ export default function App() {
   const abortRef = useRef(null)
 
   const addLog = useCallback((msg) => {
-    setLogs((prev) => [...prev, msg])
+    const now = new Date()
+    const ts = now.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour:   '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    setLogs((prev) => [...prev, { text: msg, ts: ts }])
   }, [])
 
   const loadAssignments = useCallback(async () => {
@@ -84,7 +91,7 @@ export default function App() {
     } finally {
       setSyncing(false)
     }
-  }, [addLog, loadAssignments])
+  }, [addLog, loadAssignments, externalUrls])
 
   return (
     <div className="app">
@@ -108,7 +115,7 @@ export default function App() {
           </p>
         </section>
 
-        {!hasSynced && !syncing && (
+        {assignments.length === 0 && !syncing && (
           <div className="credentials-card text-left mb-8 px-6 pt-6 pb-2">
             <UrlInputList 
               externalUrls={externalUrls} 

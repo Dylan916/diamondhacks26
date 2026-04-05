@@ -1,81 +1,110 @@
-"""
-canvas_agent.py
-Launch a Browser Use agent using the user's existing Chrome profile to scrape Canvas.
-No login required because it uses the persistent OS session.
-"""
-
 import os
-import platform
-from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-from browser_use import Agent, Browser, BrowserProfile
+import time
+from dotenv import load_dotenv, set_key
+from pydantic import BaseModel
+from browser_use_sdk.v3 import BrowserUse
+from datetime import date
 
 from .prompts import CANVAS_AGENT_TASK
 
-class CustomGeminiLLM(ChatGoogleGenerativeAI):
-    model_config = {**ChatGoogleGenerativeAI.model_config, 'extra': 'allow'}
-    provider: str = 'google'
+class Assignment(BaseModel):
+    title: str
+    course: str
+    due_date: str | None = None
+    type: str | None = None  # lab, project, exam, quiz, assignment
 
-    @property
-    def model_name(self) -> str:
-        return getattr(self, "model", "gemini-2.0-flash-exp")
+class AssignmentList(BaseModel):
+    assignments: list[Assignment]
 
 load_dotenv()
 
-
-def _get_chrome_profile_path() -> str:
-    """Return the default Chrome user-data-dir for the current OS."""
-    system = platform.system()
-    if system == "Darwin":  # macOS
-        return os.path.expanduser("~/Library/Application Support/Google/Chrome")
-    elif system == "Windows":
-        return os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
-    else:  # Linux
-        return os.path.expanduser("~/.config/google-chrome")
-
-
-async def run_canvas_agent() -> str:
+def get_or_create_profile(client: BrowserUse) -> str:
     """
-    Launch the Canvas scraping agent.
-    The browser window runs with `headless=False` so MFA/errors are visible if needed.
-    Returns raw scraped text blob.
+    Checks .env for BROWSER_USE_PROFILE_ID.
+    If missing, creates a new cloud profile and saves it to .env.
     """
-    # Always reload the dotenv file purely in case the user edits it without restarting Uvicorn
+    profile_id = os.getenv("BROWSER_USE_PROFILE_ID")
+    if profile_id:
+        return profile_id
+    
+    print("Creating new Browser Use Cloud Profile...")
+    profile = client.profiles.create_profile(name="StudentLifeAutopilot")
+    
+    # Save it to the .env file locally so we reuse it
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    set_key(env_path, "BROWSER_USE_PROFILE_ID", profile.id)
+    os.environ["BROWSER_USE_PROFILE_ID"] = profile.id
+    
+    return profile.id
+
+
+def run_canvas_agent() -> tuple[str, str, str]:
+    """
+    Creates a persistent session on Browser Use Cloud v3.
+    Returns (task_id, session_id, live_preview_url).
+    """
     load_dotenv(override=True)
     canvas_url = os.getenv("CANVAS_URL", "https://canvas.instructure.com")
+    api_key = os.getenv("BROWSER_USE_API_KEY")
+
+    if not api_key:
+        raise ValueError("BROWSER_USE_API_KEY environment variable is missing!")
+
+    # v3 client initialization
+    client = BrowserUse(api_key=api_key)
     
-    profile_path = _get_chrome_profile_path()
-
-    llm = CustomGeminiLLM(
-        model="gemini-2.0-flash-exp",
-        google_api_key=os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY"),
-    )
-
-    browser_profile = BrowserProfile(
-        headless=False,
-        user_data_dir=profile_path,
-        profile_directory="Default"
+    # 1. Ensure we have a persistent profile
+    profile_id = get_or_create_profile(client)
+    
+    # 2. Start the session/task
+    today = date.today()
+    task_prompt = (
+        CANVAS_AGENT_TASK
+        .replace("{CANVAS_URL}", canvas_url)
+        .replace("{TODAY}", today.isoformat())
+        .replace("{YEAR}", str(today.year))
     )
     
-    browser = Browser(browser_profile=browser_profile)
-
-    # Inject the URL into the task template dynamically
-    task_prompt = CANVAS_AGENT_TASK.replace("{CANVAS_URL}", canvas_url)
-
-    agent = Agent(
+    # In v3, we can kick off a task immediately in one call or create a session first.
+    # To get the live_url immediately, we create the session first.
+    session = client.sessions.create(
+        profile_id=profile_id,
+        keep_alive=True
+    )
+    
+    # Switching to claude-sonnet-4.6 and increasing cap for reliability.
+    task_resp = client.sessions.create(
         task=task_prompt,
-        llm=llm,
-        browser=browser,
+        session_id=session.id,
+        model="claude-sonnet-4.6",
+        output_schema=AssignmentList.model_json_schema(),
+        max_cost_usd=0.20,  # Lowered safety cap to protect credits
     )
 
-    result = await agent.run()
+    live_url = getattr(session, "live_url", None)
+    if not live_url:
+         live_url = f"https://cloud.browser-use.com/run/{session.id}"
 
-    if hasattr(result, "final_result"):
-        output = result.final_result()
-    elif hasattr(result, "__str__"):
-        output = str(result)
-    else:
-        output = repr(result)
+    return str(task_resp.id), str(session.id), live_url
 
-    return output or ""
-whe
+
+def poll_task_result(session_id: str) -> str:
+    """
+    Polls the session status on v3 API until terminal status detected.
+    Relies on v3 BuAgentSessionStatus.
+    """
+    load_dotenv(override=True)
+    from browser_use_sdk.v3 import BrowserUse
+    client = BrowserUse(api_key=os.getenv("BROWSER_USE_API_KEY"))
+
+    # Terminal statuses in v3 are idle, stopped, error, timed_out
+    terminal_statuses = ["idle", "stopped", "error", "timed_out"]
+
+    while True:
+        session = client.sessions.get(session_id=session_id)
+        if session.status.value in terminal_statuses:
+             # The result is already in structured format!
+             # We return it as a string for the downstream JSON processor, 
+             # but soon we'll skip the gemini parser entirely.
+             return str(session.output) if session.output else ""
+        time.sleep(3)

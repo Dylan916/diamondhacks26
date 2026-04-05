@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from .database import init_db, get_all_assignments
+from .database import init_db, get_all_assignments, clear_db
 from .sync_pipeline import run_sync
 
 class SyncRequest(BaseModel):
@@ -46,6 +46,13 @@ def health():
 @app.get("/api/assignments")
 def get_assignments():
     return get_all_assignments()
+
+
+@app.post("/api/assignments/reset")
+def reset_assignments():
+    """Wipe all saved assignments."""
+    clear_db()
+    return {"status": "success", "message": "Database cleared"}
 
 
 @app.get("/api/assignments/export/ics")

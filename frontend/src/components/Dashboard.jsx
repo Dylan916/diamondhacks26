@@ -62,24 +62,47 @@ function SummaryBar({ assignments }) {
   )
 }
 
-// ── ExportButton ──────────────────────────────────────────────────────────────
+// ── DashboardActions ─────────────────────────────────────────────────────────
 
-function ExportButton() {
+function DashboardActions() {
   const handleExport = () => {
     window.location.href = '/api/assignments/export/ics'
   }
 
+  const handleReset = async () => {
+    if (!window.confirm("Are you sure you want to clear ALL assignments? This cannot be undone.")) return
+    
+    try {
+      const resp = await fetch('http://localhost:8000/api/assignments/reset', { method: 'POST' })
+      const data = await resp.json()
+      if (data.status === 'success') {
+        window.location.reload() // Refresh to show empty state
+      }
+    } catch (err) {
+      alert("Failed to reset database: " + err.message)
+    }
+  }
+
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        onClick={handleExport}
-        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors duration-150 shadow-md"
-      >
-        <span>📅</span>
-        Export to Google Calendar
-      </button>
+    <div className="flex flex-col items-end gap-3 font-outfit">
+      <div className="flex gap-2">
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-semibold px-4 py-2 rounded-lg border border-red-500/20 transition-all duration-150 shadow-md"
+        >
+          <span>🗑️</span>
+          Clear Database
+        </button>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all duration-150 shadow-md"
+        >
+          <span>📅</span>
+          Export to Calendar
+        </button>
+      </div>
       <p className="text-xs text-slate-500">
-        Opens in Google Calendar, Apple Calendar, or Outlook
+        Export to Google Calendar, Apple, or Outlook
       </p>
     </div>
   )
@@ -102,7 +125,7 @@ export default function Dashboard({ assignments }) {
             {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} synced from Canvas
           </p>
         </div>
-        <ExportButton />
+        <DashboardActions />
       </div>
 
       {/* Summary stats */}

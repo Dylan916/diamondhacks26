@@ -114,7 +114,7 @@ html, body, #root {
 .hero p {
   color: var(--text-muted);
   font-size: 1.05rem;
-  max-width: 520px;
+  max-width: 800px;
   margin: 0 auto 2.5rem;
   line-height: 1.6;
 }
@@ -125,7 +125,7 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem;
-  max-width: 520px;
+  max-width: 800px;
   margin: 0 auto 1.5rem;
   box-shadow: var(--shadow);
 }
@@ -280,6 +280,19 @@ html, body, #root {
 }
 
 .log-msg { color: #a0aec0; word-break: break-word; }
+
+.log-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.log-link:hover {
+  color: #c084fc;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

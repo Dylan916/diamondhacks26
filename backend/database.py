@@ -16,7 +16,7 @@ def _get_conn() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create the assignments table if it doesn't already exist."""
+    """Create the assignments table if it doesn't already exist, and migrate missing columns."""
     with _get_conn() as conn:
         conn.execute(
             """
@@ -33,6 +33,17 @@ def init_db() -> None:
             )
             """
         )
+        # Forward-compatibility: add any missing columns without recreating the table
+        existing = {r[1] for r in conn.execute("PRAGMA table_info(assignments)").fetchall()}
+        migrations = {
+            "source_url": "TEXT",
+            "type": "TEXT",
+            "source": "TEXT",
+            "needs_review": "INTEGER DEFAULT 0",
+        }
+        for col, col_type in migrations.items():
+            if col not in existing:
+                conn.execute(f"ALTER TABLE assignments ADD COLUMN {col} {col_type}")
         conn.commit()
 
 
@@ -67,6 +78,13 @@ def save_assignment(assignment: dict) -> None:
                 datetime.utcnow().isoformat(),
             ),
         )
+        conn.commit()
+
+
+def clear_db() -> None:
+    """Wipe the assignments table for a fresh start."""
+    with _get_conn() as conn:
+        conn.execute("DELETE FROM assignments")
         conn.commit()
 
 
