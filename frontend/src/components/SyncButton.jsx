@@ -15,7 +15,7 @@ export default function SyncButton({ onClick, syncing }) {
       ) : (
         <>
           <span aria-hidden="true">⚡</span>
-          Sync Canvas
+          Start Sync
         </>
       )}
     </button>

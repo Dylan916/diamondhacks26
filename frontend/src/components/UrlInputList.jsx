@@ -22,8 +22,7 @@ export default function UrlInputList({ externalUrls, setExternalUrls }) {
     <div className="url-input-list">
       <h3 className="text-xl font-bold mb-4">Course Websites</h3>
       <p className="mb-4 text-gray-400">
-        Paste syllabus pages, professor websites, or course portals here. 
-        Canvas is pulled automatically using your Chrome profile.
+        Paste syllabus pages, professor websites, or course portals here.
       </p>
       
       <div className="space-y-3 mb-4">

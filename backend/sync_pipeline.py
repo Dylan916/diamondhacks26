@@ -10,7 +10,6 @@ from typing import AsyncGenerator
 import json
 import re
 from datetime import datetime
-from .canvas_agent import run_canvas_agent
 from .external_agent import run_external_agent
 from .database import is_duplicate, save_assignment
 from browser_use_sdk.v3 import BrowserUse
@@ -86,7 +85,6 @@ async def run_sync(external_urls: list[str]) -> AsyncGenerator[str, None]:
     yield "🚀 Starting External Hybrid Sync process..."
 
     # ── Step 1: Launch Tasks on Browser Use Cloud ───────────────────────
-    canvas_session_id = None # Initialize to prevent cleanup error
     external_session_id = None
     external_task_id = None
     added = 0
@@ -191,8 +189,5 @@ async def run_sync(external_urls: list[str]) -> AsyncGenerator[str, None]:
             if external_session_id:
                 print(f"Stopping external session {external_session_id}...")
                 client.sessions.stop(external_session_id)
-            if canvas_session_id:
-                print(f"Stopping canvas session {canvas_session_id}...")
-                client.sessions.stop(canvas_session_id)
         except:
             pass

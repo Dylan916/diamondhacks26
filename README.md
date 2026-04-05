@@ -1,8 +1,18 @@
-# Student Life Autopilot 🎓
+# Course2Calendar 🎓
 
-A tool that logs into Canvas with your credentials, scrapes all your assignments and deadlines using a Browser Use AI agent, and pushes everything into a Notion database you can view as a calendar.
+A high-speed, AI-powered course schedule sync tool. It uses a cloud-based browser agent to scrape your external course websites and a Gemini AI refiner to extract, classify, and normalize deadlines into a local calendar.
 
-**No Canvas API token required. Works at any school. Free with Gemini Flash.**
+**No API tokens required. Works with any public course syllabus. Free with Gemini Flash.**
+
+---
+
+## Features
+
+- **Cloud Extraction**: Scrapes public syllabus pages using high-speed browser agents.
+- **AI Refinement**: Uses Gemini 2.0 Flash to parse messy dates and compute recurring assignments (e.g., "Weekly Labs").
+- **Local Database**: Stores assignments in a lightweight SQLite database.
+- **Calendar Export**: Download a standard `.ics` file to sync with Apple Calendar, Google Calendar, or Outlook.
+- **Privacy First**: No course credentials or passwords are ever stored.
 
 ---
 
@@ -10,67 +20,40 @@ A tool that logs into Canvas with your credentials, scrapes all your assignments
 
 - Python 3.11+
 - Node.js 18+
-- A free Gemini API key from [aistudio.google.com](https://aistudio.google.com)
-- A Notion account with an integration token
+- A Gemini API key from [aistudio.google.com](https://aistudio.google.com)
+- A Browser Use Cloud API key from [cloud.browser-use.com](https://cloud.browser-use.com)
 
 ---
 
-## 1 — Set up the Notion Database
+## 1 — Configure Environment
 
-1. Go to [notion.so](https://notion.so) and create a new **full-page database** (Table view).
-2. Name it anything (e.g. "Canvas Assignments").
-3. Add these properties **exactly** (names and types must match):
-
-| Property name | Type   | Options (for Select fields)                                    |
-|---------------|--------|----------------------------------------------------------------|
-| Name          | Title  | (default, already exists)                                      |
-| Course        | Text   |                                                                |
-| Due Date      | Date   |                                                                |
-| Type          | Select | Assignment, Exam, Midterm, Final, Project, Reading, Other      |
-| Source        | Select | Assignments, Syllabus, Announcement, External Site             |
-| Needs Review  | Checkbox |                                                              |
-
-4. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations), create a new integration, copy the **Internal Integration Token**.
-5. Open your database page in Notion, click **···** (top right) → **Connect to** → select your integration.
-6. Copy the **Database ID** from the URL:
-   `https://notion.so/YourWorkspace/<DATABASE_ID>?v=...`
-
----
-
-## 2 — Configure Environment
-
+Copy the example environment file:
 ```bash
 cp .env.example .env
 ```
 
 Fill in `.env`:
 ```
-GEMINI_API_KEY=your_key_from_aistudio
-NOTION_TOKEN=secret_your_integration_token
-NOTION_DATABASE_ID=your_32char_database_id
+GEMINI_API_KEY=your_gemini_key
+BROWSER_USE_API_KEY=your_browser_use_cloud_key
 ```
 
 ---
 
-## 3 — Install Backend Dependencies
+## 2 — Install Backend Dependencies
 
 ```bash
-cd /path/to/student-life-autopilot
-
 # Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 
 # Install Python packages
 pip install -r requirements.txt
-
-# Install Playwright browser (must be done separately)
-playwright install chromium
 ```
 
 ---
 
-## 4 — Install Frontend Dependencies
+## 3 — Install Frontend Dependencies
 
 ```bash
 cd frontend
@@ -79,7 +62,7 @@ npm install
 
 ---
 
-## 5 — Run the App
+## 4 — Run the App
 
 **Terminal 1 — Backend:**
 ```bash
@@ -97,22 +80,18 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 6 — Using the App
+## 5 — Using the App
 
-1. Enter your Canvas URL (e.g. `https://sdsu.instructure.com`)
-2. Enter your Canvas username and password
-3. Click **Sync Canvas**
-4. A browser window will open — complete any MFA/Duo prompt manually
-5. Watch the live activity log as the agent scrapes your assignments
-6. When sync completes, your assignments appear as cards and in Notion
-
-**To view as a calendar in Notion:**
-Open your Notion database → click the layout selector → choose **Calendar** → select **Due Date** as the date field.
+1. Paste your course website or syllabus URL into the dashboard.
+2. Click **Start Sync**.
+3. Watch the live activity log as the agent scrapes the schedule.
+4. When sync completes, your assignments will appear in the dashboard.
+5. Click **Export to Calendar** to download your schedule as an `.ics` file.
 
 ---
 
 ## Notes
 
-- Canvas credentials are **never stored**. They are used only for the duration of the sync and discarded.
-- Duplicate assignments are skipped automatically (matched by title + course + due date).
-- The browser window is intentionally **not headless** so you can complete Duo/MFA if your school requires it.
+- **Duplicate Detection**: The app automatically skips duplicates matched by title, course, and due date.
+- **Floating Time**: Calendar exports use "Floating Time" to ensure deadlines stay at 11:59 PM regardless of your current timezone.
+- **Manual MFA**: If a site requires login or MFA, you can interact with the cloud browser session via the "Live Viewer" link provided in the logs.

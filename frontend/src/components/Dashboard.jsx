@@ -122,7 +122,7 @@ export default function Dashboard({ assignments }) {
             ✨ Your Dashboard
           </h2>
           <p className="text-slate-400 text-sm mt-1">
-            {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} synced from Canvas
+            {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} synced and ready
           </p>
         </div>
         <DashboardActions />

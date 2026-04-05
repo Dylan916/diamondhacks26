@@ -98,7 +98,7 @@ export default function App() {
       {/* ── Header ── */}
       <header className="header">
         <span className="header-logo">🎓</span>
-        <h1>Student Life Autopilot</h1>
+        <h1>Course2Calendar</h1>
         <span className="header-sub">Powered by Browser Use · Gemini Flash</span>
       </header>
 
@@ -106,12 +106,12 @@ export default function App() {
         {/* ── Hero ── */}
         <section className="hero">
           <h2>
-            Sync Canvas into<br />
+            Sync Course Schedules into<br />
             <span>Your Calendar</span>
           </h2>
           <p>
-            Paste your external course websites below. We'll automatically fetch your 
-            Canvas data using your Chrome profile, scrape everything, and build your calendar.
+            Paste your external course websites below. We'll scrape everything 
+            and build your calendar automatically.
           </p>
         </section>
 

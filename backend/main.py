@@ -20,7 +20,7 @@ class SyncRequest(BaseModel):
     external_urls: list[str] = []
 
 
-app = FastAPI(title="Student Life Autopilot")
+app = FastAPI(title="Course2Calendar")
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -61,18 +61,19 @@ def export_ics():
     assignments = get_all_assignments()
 
     def _fmt_dt(iso: str) -> str:
-        """Convert ISO 8601 string to iCal DTSTART/DTEND format (UTC)."""
+        """Convert ISO 8601 string to iCal DTSTART/DTEND format (Floating/Local)."""
         try:
             dt = datetime.fromisoformat(iso)
-            return dt.strftime("%Y%m%dT%H%M%SZ")
+            # Dropping 'Z' makes it "Floating Time" so it stays exactly at the hours generated
+            return dt.strftime("%Y%m%dT%H%M%S")
         except Exception:
             # Fall back to today at noon if parsing fails
-            return datetime.utcnow().strftime("%Y%m%dT120000Z")
+            return datetime.utcnow().strftime("%Y%m%dT120000")
 
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Student Life Autopilot//Canvas Sync//EN",
+        "PRODID:-//Course2Calendar//Sync//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
     ]
@@ -114,7 +115,7 @@ def export_ics():
         content=ics_content,
         media_type="text/calendar",
         headers={
-            "Content-Disposition": 'attachment; filename="canvas-assignments.ics"'
+            "Content-Disposition": 'attachment; filename="course-assignments.ics"'
         },
     )
 
