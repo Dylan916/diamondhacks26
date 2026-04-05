@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+browser-use
+playwright
+langchain-google-genai
+google-generativeai
+notion-client
+python-dotenv
+aiohttp
+httpx
