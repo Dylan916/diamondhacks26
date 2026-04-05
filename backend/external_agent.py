@@ -10,9 +10,9 @@ from .prompts import EXTERNAL_RAW_EXTRACT_TASK
 class RawExtraction(BaseModel):
     extracted_text: str
 
-def run_external_agent(urls: list[str]) -> tuple[str, str, str]:
+def start_external_session(url: str) -> tuple[str, str, str]:
     """
-    Creates a persistent session on Browser Use Cloud v3 for raw text extraction.
+    Creates a persistent session on Browser Use Cloud v3 for raw text extraction for a single URL.
     Returns (task_id, session_id, live_preview_url).
     """
     load_dotenv(override=True)
@@ -29,11 +29,10 @@ def run_external_agent(urls: list[str]) -> tuple[str, str, str]:
     )
 
     # 2. Build task prompt — simplified for raw text grab
-    target_url = urls[0] if urls else "https://google.com"
     today = date.today()
     task_prompt = (
         EXTERNAL_RAW_EXTRACT_TASK
-        .replace("{URL}", target_url)
+        .replace("{URL}", url)
         .replace("{TODAY}", today.isoformat())
     )
 

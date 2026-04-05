@@ -36,7 +36,11 @@ Return ONLY the structured data. No explanations.
 LLM_PROCESSING_PROMPT = """
 Extract assignments into JSON.
 
-Today is {TODAY}, Year is {YEAR}, Course is {COURSE_NAME}.
+Today is {TODAY}, Year is {YEAR}, Source URL is {URL}.
+
+MISSION:
+Identify all assignment titles, due dates, and types from the text. 
+CRITICAL: Look for the Course Name or Course Code in the text (e.g., "DSC 106", "Data Visualization"). If found, use that for the 'course' field. Otherwise, use "{COURSE_NAME}" as a fallback.
 
 RULES:
 1. Identify dates like "Tue Apr 7" or "Fri Apr 10". 
@@ -49,7 +53,7 @@ OUTPUT ONLY THIS JSON OBJECT:
   "assignments": [
     {{
       "title": "string",
-      "course": "{COURSE_NAME}",
+      "course": "string",
       "due_date": "ISO8601",
       "type": "string",
       "source_url": "{URL}"
