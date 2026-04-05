@@ -7,14 +7,13 @@ import json
 import re
 from datetime import date
 from dotenv import load_dotenv
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types as genai_types
 
 from .prompts import LLM_SYSTEM_PROMPT
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-_model = genai.GenerativeModel("gemini-1.5-flash")
 
 
 def process_raw_data(raw_text: str) -> list[dict]:
@@ -26,8 +25,13 @@ def process_raw_data(raw_text: str) -> list[dict]:
     system_prompt = LLM_SYSTEM_PROMPT.format(today=today)
     full_prompt = f"{system_prompt}\n\n=== RAW SCRAPED DATA ===\n{raw_text}"
 
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
     try:
-        response = _model.generate_content(full_prompt)
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=full_prompt,
+        )
         raw_response = response.text.strip()
 
         # Strip any accidental markdown fences Gemini might add

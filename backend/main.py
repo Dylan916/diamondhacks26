@@ -3,11 +3,14 @@ main.py — FastAPI app: SSE sync endpoint, assignments endpoint, health check.
 """
 
 import json
+import os
+import uuid
+from datetime import datetime, timedelta
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from .database import init_db, get_all_assignments
@@ -30,13 +33,6 @@ def on_startup():
     init_db()
 
 
-# ── Request models ────────────────────────────────────────────────────────────
-class SyncRequest(BaseModel):
-    canvas_url: str
-    username: str
-    password: str
-
-
 # ── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
@@ -48,20 +44,85 @@ def get_assignments():
     return get_all_assignments()
 
 
+@app.get("/api/assignments/export/ics")
+def export_ics():
+    """Generate a .ics calendar file from all saved assignments."""
+    assignments = get_all_assignments()
+
+    def _fmt_dt(iso: str) -> str:
+        """Convert ISO 8601 string to iCal DTSTART/DTEND format (UTC)."""
+        try:
+            dt = datetime.fromisoformat(iso)
+            return dt.strftime("%Y%m%dT%H%M%SZ")
+        except Exception:
+            # Fall back to today at noon if parsing fails
+            return datetime.utcnow().strftime("%Y%m%dT120000Z")
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Student Life Autopilot//Canvas Sync//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+    ]
+
+    for a in assignments:
+        due = a.get("due_date")
+        if not due:
+            continue  # skip items with no date — they'd land on day zero
+
+        dtstart = _fmt_dt(due)
+        # DTEND = due date + 1 hour
+        try:
+            dtend = _fmt_dt(
+                (datetime.fromisoformat(due) + timedelta(hours=1)).isoformat()
+            )
+        except Exception:
+            dtend = dtstart
+
+        title = a.get("title", "Untitled")
+        course = a.get("course", "")
+        summary = f"{title} [{course}]" if course else title
+        description = f"Type: {a.get('type', '')} | Source: {a.get('source', '')}"
+        uid = str(uuid.uuid4())
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"SUMMARY:{summary}",
+            f"DTSTART:{dtstart}",
+            f"DTEND:{dtend}",
+            f"DESCRIPTION:{description}",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    ics_content = "\r\n".join(lines)
+
+    return PlainTextResponse(
+        content=ics_content,
+        media_type="text/calendar",
+        headers={
+            "Content-Disposition": 'attachment; filename="canvas-assignments.ics"'
+        },
+    )
+
+
 @app.post("/api/sync")
-async def sync(body: SyncRequest):
+async def sync():
     """
     Run the full sync pipeline and stream progress as Server-Sent Events.
-    Each event is formatted as:  data: <message>\n\n
-    The stream ends with:        data: __DONE__\n\n
+    CANVAS_URL is read from the .env file, not from the request body.
     """
+    canvas_url = os.getenv("CANVAS_URL", "").strip()
+    if not canvas_url:
+        async def err():
+            yield "data: \u274c CANVAS_URL is not set in your .env file.\n\n"
+            yield "data: __DONE__\n\n"
+        return StreamingResponse(err(), media_type="text/event-stream")
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        async for log_line in run_sync(
-            canvas_url=body.canvas_url,
-            username=body.username,
-            password=body.password,
-        ):
+        async for log_line in run_sync(canvas_url=canvas_url):
             # Escape any newlines inside the message so SSE framing stays intact
             safe_line = log_line.replace("\n", " ")
             yield f"data: {safe_line}\n\n"

@@ -29,7 +29,6 @@ def init_db() -> None:
                 source        TEXT,
                 external_url  TEXT,
                 needs_review  INTEGER DEFAULT 0,
-                notion_page_id TEXT,
                 created_at    TEXT    NOT NULL
             )
             """
@@ -47,15 +46,15 @@ def is_duplicate(title: str, course: str, due_date: str | None) -> bool:
     return row is not None
 
 
-def save_assignment(assignment: dict, notion_page_id: str) -> None:
+def save_assignment(assignment: dict) -> None:
     """Persist a processed assignment to SQLite."""
     with _get_conn() as conn:
         conn.execute(
             """
             INSERT INTO assignments
                 (title, course, due_date, type, source, external_url,
-                 needs_review, notion_page_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 needs_review, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 assignment.get("title"),
@@ -65,7 +64,6 @@ def save_assignment(assignment: dict, notion_page_id: str) -> None:
                 assignment.get("source"),
                 assignment.get("external_url"),
                 1 if assignment.get("needs_review") else 0,
-                notion_page_id,
                 datetime.utcnow().isoformat(),
             ),
         )

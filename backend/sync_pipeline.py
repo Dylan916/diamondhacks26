@@ -7,13 +7,10 @@ from typing import AsyncGenerator
 
 from .browser_agent import run_agent
 from .llm_processor import process_raw_data
-from .notion_integration import create_notion_page
 from .database import is_duplicate, save_assignment
 
 
-async def run_sync(
-    canvas_url: str, username: str, password: str
-) -> AsyncGenerator[str, None]:
+async def run_sync(canvas_url: str) -> AsyncGenerator[str, None]:
     """
     Async generator that runs the full sync pipeline and yields
     human-readable log strings at each step.
@@ -22,17 +19,16 @@ async def run_sync(
     """
 
     # ── Step 1: Launch the Browser Use agent ─────────────────────────────────
-    yield "🚀 Starting Browser Use agent... (a browser window will open)"
-    yield "🔐 Logging into Canvas — complete any MFA/Duo prompt manually if needed"
+    yield "Opening Canvas using your existing Chrome session..."
 
     try:
-        raw_text = await run_agent(canvas_url, username, password)
+        raw_text = await run_agent(canvas_url)
     except Exception as e:
         yield f"❌ Browser agent error: {e}"
         return
 
     if not raw_text or not raw_text.strip():
-        yield "❌ Browser agent returned no data. Check your credentials and try again."
+        yield "❌ Browser agent returned no data. Make sure Chrome is closed and you are logged into Canvas, then try again."
         return
 
     yield "✅ Browser agent finished scraping Canvas"
@@ -53,8 +49,8 @@ async def run_sync(
 
     yield f"✅ Gemini processed {len(assignments)} assignment(s)"
 
-    # ── Step 3: Deduplication + Notion push ──────────────────────────────────
-    yield "📤 Pushing new assignments to Notion..."
+    # ── Step 3: Deduplication + save to SQLite ────────────────────────────────
+    yield "💾 Saving assignments..."
 
     added = 0
     skipped = 0
@@ -70,19 +66,15 @@ async def run_sync(
                 skipped += 1
                 continue
 
-            page_id = create_notion_page(assignment)
-            save_assignment(assignment, page_id)
-            yield f"✅ Added: {title} ({course})"
+            save_assignment(assignment)
+            yield f"✅ Saved: {title} ({course})"
             added += 1
 
-            # Small delay to avoid Notion rate limits
-            await asyncio.sleep(0.35)
-
         except Exception as e:
-            yield f"⚠️  Failed to add '{title}': {e}"
+            yield f"⚠️  Failed to save '{title}': {e}"
 
     # ── Step 4: Done ─────────────────────────────────────────────────────────
     yield (
-        f"🎉 Sync complete! {added} assignment(s) added to Notion, "
+        f"🎉 Sync complete! {added} assignment(s) saved, "
         f"{skipped} duplicate(s) skipped."
     )

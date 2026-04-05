@@ -1,16 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
-import CredentialsForm from './components/CredentialsForm'
 import SyncButton from './components/SyncButton'
 import ActivityLog from './components/ActivityLog'
-import AssignmentCard from './components/AssignmentCard'
+import Dashboard from './components/Dashboard'
 import './index.css'
 
 export default function App() {
-  const [credentials, setCredentials] = useState({
-    canvas_url: '',
-    username: '',
-    password: '',
-  })
   const [syncing, setSyncing] = useState(false)
   const [logs, setLogs] = useState([])
   const [assignments, setAssignments] = useState([])
@@ -32,12 +26,6 @@ export default function App() {
   }, [])
 
   const handleSync = useCallback(async () => {
-    const { canvas_url, username, password } = credentials
-    if (!canvas_url || !username || !password) {
-      alert('Please fill in all three fields before syncing.')
-      return
-    }
-
     setSyncing(true)
     setLogs([])
     setHasSynced(false)
@@ -49,7 +37,7 @@ export default function App() {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ canvas_url, username, password }),
+        body: JSON.stringify({}),
         signal: controller.signal,
       })
 
@@ -94,7 +82,7 @@ export default function App() {
     } finally {
       setSyncing(false)
     }
-  }, [credentials, addLog, loadAssignments])
+  }, [addLog, loadAssignments])
 
   return (
     <div className="app">
@@ -102,7 +90,7 @@ export default function App() {
       <header className="header">
         <span className="header-logo">🎓</span>
         <h1>Student Life Autopilot</h1>
-        <span className="header-sub">Powered by Browser Use · Gemini Flash · Notion</span>
+        <span className="header-sub">Powered by Browser Use · Gemini Flash</span>
       </header>
 
       <main className="main">
@@ -110,24 +98,16 @@ export default function App() {
         <section className="hero">
           <h2>
             Sync Canvas into<br />
-            <span>Notion Calendar</span>
+            <span>Your Calendar</span>
           </h2>
           <p>
-            Enter your Canvas credentials, click Sync, and the AI agent will
+            Click Sync and the AI agent will open your existing Chrome session,
             scrape all your assignments, exams, and deadlines — then push them
-            into your Notion database, ready for calendar view.
+            into your calendar, ready to view.
           </p>
         </section>
 
-        {/* ── Credentials + Sync ── */}
-        <CredentialsForm
-          values={credentials}
-          onChange={(field, val) =>
-            setCredentials((prev) => ({ ...prev, [field]: val }))
-          }
-          disabled={syncing}
-        />
-
+        {/* ── Sync ── */}
         <div className="sync-wrap">
           <SyncButton onClick={handleSync} syncing={syncing} />
         </div>
@@ -135,33 +115,21 @@ export default function App() {
         {/* ── Activity log ── */}
         {(syncing || logs.length > 0) && <ActivityLog logs={logs} />}
 
-        {/* ── Assignments grid ── */}
-        {hasSynced && (
-          <>
-            <div className="section-title">
-              ✨ Assignments
-              <span className="count">{assignments.length}</span>
-            </div>
+        {/* ── Dashboard (calendar + export) ── */}
+        {hasSynced && assignments.length > 0 && (
+          <Dashboard assignments={assignments} />
+        )}
 
-            {assignments.length === 0 ? (
-              <div className="empty-state">
-                <span className="empty-icon">🗂️</span>
-                <p>
-                  No assignments found.
-                  <small>
-                    The agent may have encountered MFA — try syncing again after
-                    completing it.
-                  </small>
-                </p>
-              </div>
-            ) : (
-              <div className="assignments-grid">
-                {assignments.map((a) => (
-                  <AssignmentCard key={a.id} assignment={a} />
-                ))}
-              </div>
-            )}
-          </>
+        {hasSynced && assignments.length === 0 && (
+          <div className="empty-state">
+            <span className="empty-icon">🗂️</span>
+            <p>
+              No assignments found.
+              <small>
+                The agent may have encountered an issue — try syncing again.
+              </small>
+            </p>
+          </div>
         )}
       </main>
     </div>

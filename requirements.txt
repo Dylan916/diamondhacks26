@@ -3,8 +3,7 @@ uvicorn[standard]
 browser-use
 playwright
 langchain-google-genai
-google-generativeai
-notion-client
+google-genai
 python-dotenv
 aiohttp
 httpx
