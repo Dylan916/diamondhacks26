@@ -4,6 +4,9 @@ A power-user tool that automatically transforms messy course syllabus websites i
 
 **No API tokens required. Works with any public course syllabus. Free with Gemini 3.1 Flash.**
 
+## 🏆 DiamondHacks 2026
+View our Devpost submission: [Course2Calendar on Devpost](https://devpost.com/software/course2calendar)
+
 ---
 
 ## ✨ Key Features
